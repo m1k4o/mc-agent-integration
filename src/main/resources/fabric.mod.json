@@ -1,0 +1,34 @@
+{
+	"schemaVersion": 1,
+	"id": "mc-agent-integration",
+	"version": "${version}",
+	"name": "MC Agent Integration",
+	"description": "Exposes client game state (HUD, chat, titles, sidebar, inventory, containers, entities, blocks) and key-simulation actions to AI agents via /mcai client commands with machine-readable JSON output.",
+	"authors": [
+		"mcai"
+	],
+	"license": "MIT",
+	"icon": "assets/mc-agent-integration/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"main": [
+			"com.mcai.McAgentIntegration"
+		],
+		"client": [
+			"com.mcai.client.McAgentIntegrationClient"
+		]
+	},
+	"mixins": [
+		"mc-agent-integration.mixins.json",
+		{
+			"config": "mc-agent-integration.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.1.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
