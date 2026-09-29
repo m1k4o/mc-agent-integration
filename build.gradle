@@ -38,6 +38,13 @@ processResources {
 	filesMatching("fabric.mod.json") {
 		expand "version": version
 	}
+
+	// Bundle the mcai terminal CLI into the jar (single source: bin/mcai).
+	// The mod extracts it on first launch so users get the command automatically.
+	from("bin") {
+		include("mcai")
+		into("mcai-bin")
+	}
 }
 
 tasks.withType(JavaCompile).configureEach {

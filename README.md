@@ -3,8 +3,8 @@
 AI-agent bridge for Minecraft 26.1.2 (Fabric). The agent runs the **`mcai` terminal
 command** and gets game state as JSON on stdout — no screenshots, no guessing.
 
-- Mod: `mc-agent-integration-1.1.0.jar` (in PolyMC `26.1.2 Main/.minecraft/mods`)
-- CLI: `bin/mcai` (installed to `~/.local/bin/mcai`, on PATH)
+- Mod: `mc-agent-integration-1.2.0.jar` (in PolyMC `26.1.2 Main/.minecraft/mods`)
+- CLI: auto-installed on first launch to `<gameDir>/mcai/bin/mcai` and (Linux) `~/.local/bin/mcai` — no manual step needed
 - MC 26.1.2, Fabric Loader 0.19.5, Fabric API 0.155.3+26.1.2, Java 25
 - Client-side only: works in singleplayer and on any server, no server install.
 - Transport: file bridge in `<gameDir>/mcai/` (no network server).
@@ -99,7 +99,7 @@ Needs JDK 25 (PolyMC instance uses `/usr/lib/jvm/jdk-25.0.4.1-oracle-x64`):
 ```bash
 export JAVA_HOME=/usr/lib/jvm/jdk-25.0.4.1-oracle-x64
 ./gradlew build
-# jar -> build/libs/mc-agent-integration-1.1.0.jar
+# jar -> build/libs/mc-agent-integration-1.2.0.jar
 # copy to PolyMC mods to test
 ```
 

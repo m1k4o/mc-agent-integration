@@ -21,7 +21,7 @@ import time
 import uuid
 
 # Single source of truth for the CLI side — keep in sync with gradle.properties.
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 OUTPUT_CMDS = [
     ("state", "mcai state", "full snapshot: pos/rot/dim/health/flags/xp/world/env"),
