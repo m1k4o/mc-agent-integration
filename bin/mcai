@@ -20,6 +20,9 @@ import sys
 import time
 import uuid
 
+# Single source of truth for the CLI side — keep in sync with gradle.properties.
+VERSION = "1.1.0"
+
 OUTPUT_CMDS = [
     ("state", "mcai state", "full snapshot: pos/rot/dim/health/flags/xp/world/env"),
     ("pos", "mcai pos", "compact position + rotation"),
@@ -102,6 +105,7 @@ def print_help(as_json=False):
         print(json.dumps({
             "ok": True,
             "mod": "mc-agent-integration",
+            "version": VERSION,
             "input": [{"name": n, "usage": u, "desc": d} for n, u, d in INPUT_CMDS],
             "output": [{"name": n, "usage": u, "desc": d} for n, u, d in OUTPUT_CMDS],
         }))
@@ -196,6 +200,10 @@ def main(argv):
 
     if not rest or rest[0] in ("help", "-h", "--help", "?"):
         print_help(as_json=want_json_help or (rest and "--json" in rest))
+        return 0
+
+    if rest[0] in ("--version", "version"):
+        print(json.dumps({"ok": True, "mod": "mc-agent-integration", "version": VERSION}) if want_json_help else f"mcai {VERSION}")
         return 0
 
     line = " ".join(rest)

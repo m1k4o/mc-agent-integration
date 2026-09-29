@@ -16,6 +16,18 @@ import net.minecraft.network.chat.Component;
 public final class McaiCommands {
 	private McaiCommands() {}
 
+	/** Single source of truth: the fabric.mod.json version baked into this jar. */
+	public static String modVersion() {
+		try {
+			return net.fabricmc.loader.api.FabricLoader.getInstance()
+				.getModContainer("mc-agent-integration")
+				.map(c -> c.getMetadata().getVersion().getFriendlyString())
+				.orElse("dev");
+		} catch (Exception e) {
+			return "dev";
+		}
+	}
+
 	record Cmd(String name, String usage, String desc) {}
 
 	private static final Cmd[] OUTPUT = {
@@ -67,6 +79,7 @@ public final class McaiCommands {
 		JsonObject o = Json.obj();
 		o.addProperty("ok", true);
 		o.addProperty("mod", "mc-agent-integration");
+		o.addProperty("version", modVersion());
 		o.addProperty("note", "machine-readable agent API. No args = this help. All output is JSON.");
 		JsonArray in = new JsonArray();
 		for (Cmd c : INPUT) {
