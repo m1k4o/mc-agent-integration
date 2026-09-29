@@ -16,6 +16,7 @@ public class McAgentIntegrationClient implements ClientModInitializer {
 
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			try { KeyHoldQueue.tick(); } catch (Exception ignored) {}
+			try { StateTracker.tick(mc); } catch (Exception ignored) {}
 			try { FileBridge.tick(mc); } catch (Exception ignored) {}
 		});
 

@@ -35,7 +35,7 @@ public final class McaiCommands {
 		new Cmd("effects", "/mcai effects", "active mob effects with amplifier/ticks"),
 		new Cmd("hud", "/mcai hud", "combined chat+titles+sidebar+bossbars in one call"),
 		new Cmd("keys", "/mcai keys", "currently held simulated keys with ticks left"),
-		new Cmd("events", "/mcai events [limit]", "recent captured events (chat/title/death/hurt)"),
+		new Cmd("events", "/mcai events [limit]", "recent events: chat/title/death/hurt/respawn/container_open/container_close/screen/send"),
 		new Cmd("screen", "/mcai screen", "which GUI screen is open (chat/inventory/chest/death/pause)"),
 		new Cmd("alive", "/mcai alive", "liveness ping: hasWorld + open screen"),
 		new Cmd("recipe", "/mcai recipe <item> [limit]", "recipe-book entries crafting an item, with ingredient options + ids for craft")

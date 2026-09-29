@@ -103,10 +103,9 @@ export JAVA_HOME=/usr/lib/jvm/jdk-25.0.4.1-oracle-x64
 # copy to PolyMC mods to test
 ```
 
-## Notes / future ideas (not in MVP)
+## Notes
 
-- `events` polling already covers chat/title/actionbar/send; could add death/hurt/container-change hooks.
-- `hud` single-call dump saves round-trips vs 4 separate calls.
-- `scan` block census + `entities` + `target` replace most screenshot needs; visual screenshot still useful for terrain shape.
-- Possible later: `waypoints`, `script` queues with tick delays, recipe/craftable queries, raycast-entity `interact`.
-- No HTTP/file bridge, no Baritone — per request. Agent screenshots the game window and types `/mcai ...`.
+- `events` covers chat/title/actionbar/send plus edge-triggered death/respawn/hurt/container_open/container_close/screen hooks.
+- Screenshots of the game window remain useful for terrain shape; text, inventories, and entities come from `mcai`.
+- Possible later: `waypoints`, `script` queues with tick delays.
+- No network server, no Baritone — per request. Transport is the `<gameDir>/mcai/` file bridge; the agent runs the `mcai` terminal command (in-game `/mcai` chat commands share the same backend).

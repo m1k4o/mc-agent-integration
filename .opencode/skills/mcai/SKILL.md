@@ -33,7 +33,9 @@ answers in 1–3 ticks. Prefer a single `press forward 40` over many 1-tick pres
 - `mcai state` — pos/yaw/pitch, dimension, health/food, flags (incl. `breaking`),
   xp, world, biome/light, held keys.
 - `mcai hud` — chat + titles + sidebar + bossbars in one call (cheapest full picture).
-- `mcai chat [limit]` / `mcai events [limit]` / `mcai titles` / `mcai sidebar` / `mcai bossbars`.
+- `mcai chat [limit]` / `mcai events [limit]` — events cover chat, titles, death,
+  respawn, hurt (half-heart+ drops), container open/close, screen changes, sent messages.
+- `mcai titles` / `mcai sidebar` / `mcai bossbars` for the individual HUD parts.
 - `mcai screen` — which GUI is open: `{open, name, title, isContainer, isChat, isInventory}`.
   Check this when unsure what the player is looking at (chest vs death vs pause).
 - `mcai inventory` — player slots **plus `openContainer` when a container is open**
