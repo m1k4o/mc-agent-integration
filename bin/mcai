@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""mcai - terminal command for the mc-agent-integration Minecraft mod.
+
+The agent runs `mcai <command>` in a shell and gets JSON on stdout.
+Transport: file bridge in <gameDir>/mcai/ (no network server).
+  CLI writes  mcai/cmd.json  {id, line}
+  mod answers mcai/resp.json {id, result}
+Snapshots (state/hud/inventory/container/alive) are also polled from files.
+
+Usage:
+  mcai                      clean readable command list (input/output split)
+  mcai state                full snapshot JSON
+  mcai press forward 20     hold key, JSON receipt
+  mcai --dir <gameDir> ...  override game dir (or $MCAI_DIR)
+  mcai --snap state         read last snapshot file without waking the game
+"""
+import json
+import os
+import sys
+import time
+import uuid
+
+OUTPUT_CMDS = [
+    ("state", "mcai state", "full snapshot: pos/rot/dim/health/flags/xp/world/env"),
+    ("pos", "mcai pos", "compact position + rotation"),
+    ("world", "mcai world", "time/weather/difficulty + biome/light"),
+    ("chat", "mcai chat [limit]", "last N chat messages from memory"),
+    ("titles", "mcai titles", "current title/subtitle/actionbar"),
+    ("sidebar", "mcai sidebar", "scoreboard sidebar lines"),
+    ("bossbars", "mcai bossbars", "active boss bars with progress"),
+    ("inventory", "mcai inventory", "player inventory (empty runs in emptyRanges) + openContainer if open"),
+    ("container", "mcai container", "open container/menu slots + title (empty runs in emptyRanges)"),
+    ("held", "mcai held", "mainhand + offhand detail"),
+    ("entities", "mcai entities [radius] [limit]", "nearby entities type/pos/dist/hp"),
+    ("target", "mcai target", "crosshair block/entity + raycast block"),
+    ("scan", "mcai scan [radius]", "block census cube around player"),
+    ("effects", "mcai effects", "active mob effects"),
+    ("hud", "mcai hud", "chat+titles+sidebar+bossbars in one call"),
+    ("keys", "mcai keys", "held simulated keys"),
+    ("events", "mcai events [limit]", "recent events: chat/title/death/hurt/respawn/container/screen"),
+    ("screen", "mcai screen", "which GUI screen is open"),
+    ("alive", "mcai alive", "liveness ping: hasWorld + open screen"),
+    ("recipe", "mcai recipe <item> [limit]", "recipe-book entries + ingredient options + ids for craft"),
+]
+
+INPUT_CMDS = [
+    ("say", "mcai say <message>", "send chat message"),
+    ("run", "mcai run <command>", "run client command (no leading slash)"),
+    ("look", "mcai look <yaw> <pitch>", "set look rotation"),
+    ("lookat", "mcai lookat <x> <y> <z>", "look at coordinates"),
+    ("press", "mcai press <key> [ticks]", "hold key: forward back left right jump sneak sprint attack use"),
+    ("release", "mcai release <key>", "release a held key"),
+    ("stop", "mcai stop", "release all held keys"),
+    ("click", "mcai click <slot> [button] [mode]", "click open-container slot (button 0=left 1=right, mode pickup|quickmove|swap|throw)"),
+    ("select", "mcai select <0-8>", "select hotbar slot"),
+    ("drop", "mcai drop [all]", "drop selected stack"),
+    ("attack", "mcai attack", "single attack pulse"),
+    ("use", "mcai use", "single use pulse"),
+    ("interact", "mcai interact [hand]", "right-click the crosshair entity"),
+    ("place", "mcai place [hand]", "place held block on crosshair face"),
+    ("craft", "mcai craft <recipeId> [one]", "place recipe into open crafting grid"),
+    ("equip", "mcai equip <slot>", "shift-click slot to auto-equip armor"),
+    ("close", "mcai close", "close the open screen"),
+    ("respawn", "mcai respawn", "respawn if dead"),
+    ("clear", "mcai clear", "clear chat/event buffers"),
+]
+
+SNAP_FILES = {
+    "state": "state.json",
+    "hud": "hud.json",
+    "inventory": "inventory.json",
+    "container": "container.json",
+    "alive": "alive.json",
+    "screen": "screen.json",
+}
+
+DEFAULT_DIRS = [
+    "/home/mikro/.local/share/PolyMC/instances/26.1.2 Main/.minecraft",
+]
+
+
+def find_game_dir(cli_dir=None):
+    if cli_dir:
+        return cli_dir
+    for env in ("MCAI_DIR", "MCAI_GAME_DIR"):
+        v = os.environ.get(env)
+        if v:
+            return v
+    for d in DEFAULT_DIRS:
+        if os.path.isdir(os.path.join(d, "mcai")) or os.path.isdir(d):
+            # prefer the PolyMC instance if it exists at all
+            if os.path.isdir(d):
+                return d
+    home_mc = os.path.expanduser("~/.minecraft")
+    if os.path.isdir(home_mc):
+        return home_mc
+    return DEFAULT_DIRS[0]
+
+
+def print_help(as_json=False):
+    if as_json:
+        print(json.dumps({
+            "ok": True,
+            "mod": "mc-agent-integration",
+            "input": [{"name": n, "usage": u, "desc": d} for n, u, d in INPUT_CMDS],
+            "output": [{"name": n, "usage": u, "desc": d} for n, u, d in OUTPUT_CMDS],
+        }))
+        return
+    print("mcai - minecraft agent integration")
+    print("Usage: mcai <command> [args]  (output is JSON on stdout)")
+    print("")
+    print("OUTPUT (read game state):")
+    for _, usage, desc in OUTPUT_CMDS:
+        print(f"  {usage:<32} {desc}")
+    print("")
+    print("INPUT (control the player):")
+    for _, usage, desc in INPUT_CMDS:
+        print(f"  {usage:<32} {desc}")
+    print("")
+    print("Flags: --dir <gameDir>  --timeout <sec>  --snap (snapshot only)  --json")
+
+
+def read_snapshot(bridge, name):
+    fname = SNAP_FILES.get(name)
+    if not fname:
+        return None
+    p = os.path.join(bridge, fname)
+    if not os.path.isfile(p):
+        return None
+    with open(p, "r", encoding="utf-8") as f:
+        return f.read().strip()
+
+
+def live_request(bridge, line, timeout):
+    cmd_path = os.path.join(bridge, "cmd.json")
+    resp_path = os.path.join(bridge, "resp.json")
+    req_id = uuid.uuid4().hex[:12]
+    req = json.dumps({"id": req_id, "line": line})
+    tmp = cmd_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(req)
+    os.replace(tmp, cmd_path)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with open(resp_path, "r", encoding="utf-8") as f:
+                text = f.read().strip()
+            if text:
+                resp = json.loads(text)
+                if resp.get("id") == req_id:
+                    return resp.get("result", {"ok": False, "error": "empty_result"})
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+        except OSError as e:
+            return {"ok": False, "error": f"bridge_read: {e}"}
+        time.sleep(0.1)
+    return None
+
+
+def main(argv):
+    cli_dir = None
+    timeout = 8.0
+    want_json_help = False
+    snap_only = False
+    rest = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--dir" and i + 1 < len(argv):
+            cli_dir = argv[i + 1]
+            i += 2
+        elif a.startswith("--dir="):
+            cli_dir = a.split("=", 1)[1]
+            i += 1
+        elif a == "--timeout" and i + 1 < len(argv):
+            try:
+                timeout = float(argv[i + 1])
+            except ValueError:
+                pass
+            i += 2
+        elif a.startswith("--timeout="):
+            try:
+                timeout = float(a.split("=", 1)[1])
+            except ValueError:
+                pass
+            i += 1
+        elif a == "--json":
+            want_json_help = True
+            i += 1
+        elif a == "--snap":
+            snap_only = True
+            i += 1
+        else:
+            rest.append(a)
+            i += 1
+
+    if not rest or rest[0] in ("help", "-h", "--help", "?"):
+        print_help(as_json=want_json_help or (rest and "--json" in rest))
+        return 0
+
+    line = " ".join(rest)
+    game_dir = find_game_dir(cli_dir)
+    bridge = os.path.join(game_dir, "mcai")
+
+    if snap_only:
+        sub = rest[0].lower()
+        snap = read_snapshot(bridge, sub)
+        if snap:
+            print(snap)
+            return 0
+        print(json.dumps({"ok": False, "error": f"no snapshot for '{sub}' in {bridge}"}))
+        return 1
+
+    if not os.path.isdir(bridge):
+        print(json.dumps({"ok": False, "error": f"bridge dir not found: {bridge} (is Minecraft running with mc-agent-integration?)"}))
+        return 1
+
+    # warn if game heartbeat is stale, but still try the live request
+    try:
+        alive_p = os.path.join(bridge, "alive.json")
+        age = time.time() - os.path.getmtime(alive_p)
+        if age > 10:
+            print(f"warn: game heartbeat {age:.0f}s old - is Minecraft running? trying anyway...", file=sys.stderr)
+    except OSError:
+        print("warn: no game heartbeat yet - is Minecraft running? trying anyway...", file=sys.stderr)
+
+    result = live_request(bridge, line, timeout)
+    if result is None:
+        # fall back to snapshot if one exists
+        sub = rest[0].lower()
+        snap = read_snapshot(bridge, sub)
+        if snap:
+            print(snap, file=sys.stdout)
+            print(f"warn: live request timed out after {timeout:g}s, served stale snapshot", file=sys.stderr)
+            return 0
+        print(json.dumps({"ok": False, "error": f"timed out after {timeout:g}s waiting for game (is Minecraft with mc-agent-integration running? bridge={bridge})"}))
+        return 1
+    print(json.dumps(result))
+    return 0 if result.get("ok", False) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

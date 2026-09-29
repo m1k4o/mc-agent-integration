@@ -12,11 +12,12 @@ classes/
 *.iml
 *.ipr
 *.iws
-
 # vscode
+
 .settings/
 .vscode/
-bin/
+bin/*
+!bin/mcai
 .classpath
 .project
 
